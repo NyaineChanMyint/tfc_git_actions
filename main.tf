@@ -1,24 +1,56 @@
-# Create a VPC
-resource "aws_vpc" "testing" {
-  cidr_block = "10.0.0.0/16"
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "3.26.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.0.1"
+    }
+  }
+  required_version = ">= 0.14"
+
+  backend "remote" {
+    organization = "NyaineCM_Devops_Co_Ltd"
+
+    workspaces {
+      name = "Terraform_Cloud_Api_driven_wf_with_git_actions"
+    }
+  }
 }
 
-module "ec2_instance" {
-  source  = "terraform-aws-modules/ec2-instance/aws"
-  version = "~> 3.0"
 
-  name = "single-instance"
+provider "aws" {
+  region = "us-west-2"
+}
 
-  ami                    = "ami-0133407e358cc1af0"
+
+
+resource "random_pet" "sg" {}
+
+resource "aws_instance" "web" {
+  ami                    = "ami-830c94e3"
   instance_type          = "t2.micro"
-  key_name               = "ncm_us"
-  monitoring             = true
-  vpc_security_group_ids = ["sg-e48461db"]
-  subnet_id              = "subnet-7a413e37"
-  #source_ami_region = "ap-southeast-1"
+  vpc_security_group_ids = [aws_security_group.web-sg.id]
 
-  tags = {
-    Terraform   = "true"
-    Environment = "dev_env_test"
+  user_data = <<-EOF
+              #!/bin/bash
+              echo "Hello, World" > index.html
+              nohup busybox httpd -f -p 8080 &
+              EOF
+}
+
+resource "aws_security_group" "web-sg" {
+  name = "${random_pet.sg.id}-sg"
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+output "web-address" {
+  value = "${aws_instance.web.public_dns}:8080"
 }
